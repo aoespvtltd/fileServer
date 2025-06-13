@@ -4,7 +4,7 @@ services:
   file-server:
     build: .
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - uploads_data:/app/uploads
     environment:
