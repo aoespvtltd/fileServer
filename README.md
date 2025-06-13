@@ -38,7 +38,7 @@ bun start
 
 1. Clone the repository to your server:
 ```bash
-git clone <repository-url> /opt/file_server
+git clone https://github.com/aoespvtltd/fileServer.git /opt/file_server
 cd /opt/file_server
 ```
 
