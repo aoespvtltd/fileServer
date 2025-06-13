@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Uploaded Files</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+      body {
+        background-color: #f8f9fa;
+      }
+      .files-container {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 2rem;
+        margin-top: 2rem;
+      }
+      .file-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1.5rem;
+      }
+      .file-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        padding: 1rem;
+        transition: transform 0.2s;
+      }
+      .file-card:hover {
+        transform: translateY(-2px);
+      }
+      .file-icon {
+        font-size: 2rem;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+      }
+      .file-name {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        word-break: break-word;
+      }
+      .file-size {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+      }
+      .file-date {
+        color: #adb5bd;
+        font-size: 0.8rem;
+      }
+      .file-type {
+        color: #6c757d;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        margin-bottom: 0.5rem;
+      }
+      .file-link {
+        color: #0d6efd;
+        text-decoration: none;
+        word-break: break-all;
+      }
+      .file-link:hover {
+        text-decoration: underline;
+      }
+      .list-view .file-grid {
+        display: block;
+      }
+      .list-view .file-card {
+        display: flex;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+      .list-view .file-icon {
+        margin: 0 1rem 0 0;
+      }
+      .list-view .file-info {
+        flex-grow: 1;
+      }
+      .view-toggle {
+        margin-bottom: 1rem;
+      }
+      .sort-options {
+        margin-bottom: 1rem;
+      }
+      .no-files {
+        text-align: center;
+        color: #6c757d;
+        padding: 2rem;
+      }
+      .btn-group-sm > .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.875rem;
+      }
+      .image-preview {
+        width: 100%;
+        height: 150px;
+        object-fit: cover;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+      }
+      .list-view .image-preview {
+        width: 100px;
+        height: 100px;
+        margin: 0 1rem 0 0;
+      }
+      .file-type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        background-color: #e9ecef;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        color: #495057;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand" href="/">File Server</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Upload Files</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/files">View Files</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="files-container">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+          <h1 class="mb-0">Uploaded Files</h1>
+          <div class="d-flex gap-3">
+            <div class="sort-options">
+              <select class="form-select" id="sortSelect">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="name">Name (A-Z)</option>
+                <option value="size">Size</option>
+              </select>
+            </div>
+            <div class="view-toggle">
+              <div class="btn-group">
+                <button class="btn btn-outline-primary active" id="gridView">
+                  <i class="fas fa-th-large"></i>
+                </button>
+                <button class="btn btn-outline-primary" id="listView">
+                  <i class="fas fa-list"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="fileList" class="file-grid"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      let files = [];
+      const fileList = document.getElementById('fileList');
+      const sortSelect = document.getElementById('sortSelect');
+      const gridView = document.getElementById('gridView');
+      const listView = document.getElementById('listView');
+
+      function getFileIcon(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        const docExts = ['doc', 'docx', 'pdf', 'txt'];
+        const codeExts = ['js', 'ts', 'py', 'java', 'cpp', 'html', 'css'];
+        const exeExts = ['exe', 'msi', 'apk', 'dmg'];
+        
+        if (imageExts.includes(ext)) return 'fa-image';
+        if (docExts.includes(ext)) return 'fa-file-alt';
+        if (codeExts.includes(ext)) return 'fa-file-code';
+        if (exeExts.includes(ext)) return 'fa-download';
+        return 'fa-file';
+      }
+
+      function getFileType(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        const types = {
+          // Images
+          'jpg': 'JPEG Image',
+          'jpeg': 'JPEG Image',
+          'png': 'PNG Image',
+          'gif': 'GIF Image',
+          'webp': 'WebP Image',
+          // Documents
+          'pdf': 'PDF Document',
+          'doc': 'Word Document',
+          'docx': 'Word Document',
+          'txt': 'Text File',
+          // Code
+          'js': 'JavaScript File',
+          'ts': 'TypeScript File',
+          'py': 'Python File',
+          'java': 'Java File',
+          'cpp': 'C++ File',
+          'html': 'HTML File',
+          'css': 'CSS File',
+          // Executables
+          'exe': 'Windows Executable',
+          'msi': 'Windows Installer',
+          'apk': 'Android Package',
+          'dmg': 'Mac Disk Image'
+        };
+        return types[ext] || `${ext.toUpperCase()} File`;
+      }
+
+      function formatDate(date) {
+        return new Date(date).toLocaleString();
+      }
+
+      function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      function sortFiles(files, sortBy) {
+        return [...files].sort((a, b) => {
+          switch (sortBy) {
+            case 'newest':
+              return b.uploadedAt - a.uploadedAt;
+            case 'oldest':
+              return a.uploadedAt - b.uploadedAt;
+            case 'name':
+              return a.originalName.localeCompare(b.originalName);
+            case 'size':
+              return b.size - a.size;
+            default:
+              return 0;
+          }
+        });
+      }
+
+      function isImageFile(filename) {
+        const ext = filename.split('.').pop().toLowerCase();
+        return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+      }
+
+      function renderFiles() {
+        const sortedFiles = sortFiles(files, sortSelect.value);
+        fileList.innerHTML = '';
+
+        if (sortedFiles.length === 0) {
+          fileList.innerHTML = '<div class="no-files">No files have been uploaded yet.</div>';
+          return;
+        }
+
+        sortedFiles.forEach(file => {
+          const card = document.createElement('div');
+          card.className = 'file-card';
+          
+          const icon = getFileIcon(file.filename);
+          const fileType = getFileType(file.filename);
+          const isImage = isImageFile(file.filename);
+          
+          let previewHtml = '';
+          if (isImage) {
+            previewHtml = `<img src="${file.url}" class="image-preview" alt="${file.originalName}">`;
+          } else {
+            previewHtml = `<div class="text-center"><i class="fas ${icon} file-icon"></i></div>`;
+          }
+          
+          card.innerHTML = `
+            ${previewHtml}
+            <div class="file-info">
+              <div class="file-name">${file.originalName}</div>
+              <div class="file-type-badge">${fileType}</div>
+              <div class="file-size">${formatFileSize(file.size)}</div>
+              <div class="file-date">${formatDate(file.uploadedAt)}</div>
+              <div class="d-flex gap-2 mt-2">
+                <button class="btn btn-sm btn-outline-primary copy-url" data-url="${file.url}">
+                  <i class="fas fa-copy"></i> Copy URL
+                </button>
+                <a href="${file.url}" class="btn btn-sm btn-primary" target="_blank">
+                  <i class="fas fa-external-link-alt"></i> View
+                </a>
+              </div>
+            </div>
+          `;
+          
+          fileList.appendChild(card);
+
+          // Add copy functionality
+          const copyBtn = card.querySelector('.copy-url');
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(file.url);
+              const originalText = copyBtn.innerHTML;
+              copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+              copyBtn.classList.remove('btn-outline-primary');
+              copyBtn.classList.add('btn-success');
+              setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.classList.remove('btn-success');
+                copyBtn.classList.add('btn-outline-primary');
+              }, 2000);
+            } catch (err) {
+              console.error('Failed to copy:', err);
+            }
+          });
+        });
+      }
+
+      async function loadFiles() {
+        try {
+          const response = await fetch('/api/files');
+          files = await response.json();
+          renderFiles();
+        } catch (error) {
+          console.error('Error loading files:', error);
+          fileList.innerHTML = '<div class="no-files">Error loading files. Please try again later.</div>';
+        }
+      }
+
+      // Event Listeners
+      sortSelect.addEventListener('change', renderFiles);
+      
+      gridView.addEventListener('click', () => {
+        fileList.classList.remove('list-view');
+        gridView.classList.add('active');
+        listView.classList.remove('active');
+      });
+      
+      listView.addEventListener('click', () => {
+        fileList.classList.add('list-view');
+        listView.classList.add('active');
+        gridView.classList.remove('active');
+      });
+
+      // Load files when the page loads
+      loadFiles();
+    </script>
+  </body>
+</html> 

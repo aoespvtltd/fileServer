@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>File Upload</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+      body {
+        background-color: #f8f9fa;
+      }
+      .upload-container {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        padding: 2rem;
+        margin-top: 2rem;
+      }
+      .drop-zone {
+        border: 3px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 3rem 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        background-color: #f8f9fa;
+        cursor: pointer;
+      }
+      .drop-zone:hover {
+        border-color: #0d6efd;
+        background-color: #e9ecef;
+      }
+      .drop-zone.dragover {
+        border-color: #0d6efd;
+        background-color: #e9ecef;
+      }
+      .upload-icon {
+        font-size: 3rem;
+        color: #6c757d;
+        margin-bottom: 1rem;
+      }
+      .upload-text {
+        color: #6c757d;
+        font-size: 1.2rem;
+        margin-bottom: 0.5rem;
+      }
+      .upload-subtext {
+        color: #adb5bd;
+        font-size: 0.9rem;
+      }
+      #result {
+        margin-top: 1.5rem;
+      }
+      .success {
+        background-color: #d1e7dd;
+        color: #0f5132;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+      }
+      .error {
+        background-color: #f8d7da;
+        color: #842029;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+      }
+      .file-preview {
+        max-width: 100px;
+        max-height: 100px;
+        margin: 0.5rem;
+        border-radius: 5px;
+      }
+      .preview-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand" href="/">File Server</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link active" href="/">Upload Files</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/files">View Files</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container">
+      <div class="upload-container">
+        <h1 class="text-center mb-4">Upload Files</h1>
+        <div class="drop-zone" id="dropZone">
+          <i class="fas fa-cloud-upload-alt upload-icon"></i>
+          <div class="upload-text">Drag and drop files here</div>
+          <div class="upload-subtext">or click to select files</div>
+          <input type="file" id="fileInput" multiple style="display: none">
+        </div>
+        <div id="result"></div>
+        <div id="preview" class="preview-container"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const dropZone = document.getElementById('dropZone');
+      const fileInput = document.getElementById('fileInput');
+      const resultDiv = document.getElementById('result');
+      const previewDiv = document.getElementById('preview');
+
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+      });
+
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+      });
+
+      function highlight(e) {
+        dropZone.classList.add('dragover');
+      }
+
+      function unhighlight(e) {
+        dropZone.classList.remove('dragover');
+      }
+
+      dropZone.addEventListener('drop', handleDrop, false);
+      dropZone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleFiles(files);
+      }
+
+      function createPreview(file) {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = document.createElement('img');
+            img.src = e.target.result;
+            img.className = 'file-preview';
+            previewDiv.appendChild(img);
+          };
+          reader.readAsDataURL(file);
+        }
+      }
+
+      async function handleFiles(files) {
+        previewDiv.innerHTML = '';
+        resultDiv.innerHTML = '';
+        
+        for (const file of files) {
+          createPreview(file);
+          const formData = new FormData();
+          formData.append('file', file);
+
+          try {
+            const response = await fetch('/upload', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+            
+            if (response.ok) {
+              const successDiv = document.createElement('div');
+              successDiv.className = 'success';
+              successDiv.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                  <div>
+                    <strong>${file.name}</strong> uploaded successfully!
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary copy-url" data-url="${data.url}">
+                      <i class="fas fa-copy"></i> Copy URL
+                    </button>
+                    <a href="${data.url}" class="btn btn-sm btn-primary" target="_blank">
+                      <i class="fas fa-external-link-alt"></i> View
+                    </a>
+                  </div>
+                </div>
+              `;
+              resultDiv.appendChild(successDiv);
+
+              // Add copy functionality
+              const copyBtn = successDiv.querySelector('.copy-url');
+              copyBtn.addEventListener('click', async () => {
+                try {
+                  await navigator.clipboard.writeText(data.url);
+                  const originalText = copyBtn.innerHTML;
+                  copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                  copyBtn.classList.remove('btn-outline-primary');
+                  copyBtn.classList.add('btn-success');
+                  setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                    copyBtn.classList.remove('btn-success');
+                    copyBtn.classList.add('btn-outline-primary');
+                  }, 2000);
+                } catch (err) {
+                  console.error('Failed to copy:', err);
+                }
+              });
+            } else {
+              throw new Error(data.error || 'Upload failed');
+            }
+          } catch (error) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error';
+            errorDiv.textContent = `Error uploading "${file.name}": ${error.message}`;
+            resultDiv.appendChild(errorDiv);
+          }
+        }
+      }
+    </script>
+  </body>
+</html> 

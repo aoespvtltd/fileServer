@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  file-server:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+    name: file_server_uploads
+    driver: local 
