@@ -63,6 +63,13 @@
         border-radius: 8px;
         margin-top: 1rem;
       }
+      .uploading {
+        background-color: #fff3cd;
+        color: #856404;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-top: 1rem;
+      }
       .file-preview {
         max-width: 100px;
         max-height: 100px;
@@ -74,6 +81,33 @@
         flex-wrap: wrap;
         gap: 1rem;
         margin-top: 1rem;
+      }
+      .progress-container {
+        margin-top: 0.5rem;
+      }
+      .progress {
+        height: 8px;
+        border-radius: 4px;
+      }
+      .upload-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .spinner-border-sm {
+        width: 1rem;
+        height: 1rem;
+      }
+      .file-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+      }
+      .file-size {
+        color: #6c757d;
+        font-size: 0.875rem;
       }
     </style>
   </head>
@@ -153,6 +187,14 @@
         handleFiles(files);
       }
 
+      function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
       function createPreview(file) {
         if (file.type.startsWith('image/')) {
           const reader = new FileReader();
@@ -166,68 +208,139 @@
         }
       }
 
+      function createUploadStatus(file) {
+        const statusDiv = document.createElement('div');
+        statusDiv.className = 'uploading';
+        statusDiv.innerHTML = `
+          <div class="upload-status">
+            <div class="spinner-border spinner-border-sm text-warning" role="status">
+              <span class="visually-hidden">Loading...</span>
+            </div>
+            <div class="file-info">
+              <strong>${file.name}</strong>
+              <span class="file-size">(${formatFileSize(file.size)})</span>
+            </div>
+            <span class="progress-text">0%</span>
+          </div>
+          <div class="progress-container">
+            <div class="progress">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                   role="progressbar" style="width: 0%" 
+                   aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+              </div>
+            </div>
+          </div>
+        `;
+        resultDiv.appendChild(statusDiv);
+        return statusDiv;
+      }
+
+      function updateProgress(statusDiv, percent) {
+        const progressBar = statusDiv.querySelector('.progress-bar');
+        const progressText = statusDiv.querySelector('.progress-text');
+        progressBar.style.width = percent + '%';
+        progressBar.setAttribute('aria-valuenow', percent);
+        progressText.textContent = Math.round(percent) + '%';
+      }
+
+      function completeUpload(statusDiv, file, data, isSuccess = true) {
+        if (isSuccess) {
+          statusDiv.className = 'success';
+          statusDiv.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="file-info">
+                <strong>${file.name}</strong>
+                <span class="file-size">(${formatFileSize(file.size)})</span>
+              </div>
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary copy-url" data-url="${data.url}">
+                  <i class="fas fa-copy"></i> Copy URL
+                </button>
+                <a href="${data.url}" class="btn btn-sm btn-primary" target="_blank">
+                  <i class="fas fa-external-link-alt"></i> View
+                </a>
+              </div>
+            </div>
+          `;
+
+          // Add copy functionality
+          const copyBtn = statusDiv.querySelector('.copy-url');
+          copyBtn.addEventListener('click', async () => {
+            try {
+              await navigator.clipboard.writeText(data.url);
+              const originalText = copyBtn.innerHTML;
+              copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+              copyBtn.classList.remove('btn-outline-primary');
+              copyBtn.classList.add('btn-success');
+              setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+                copyBtn.classList.remove('btn-success');
+                copyBtn.classList.add('btn-outline-primary');
+              }, 2000);
+            } catch (err) {
+              console.error('Failed to copy:', err);
+            }
+          });
+        } else {
+          statusDiv.className = 'error';
+          statusDiv.innerHTML = `
+            <div class="file-info">
+              <strong>${file.name}</strong>
+              <span class="file-size">(${formatFileSize(file.size)})</span>
+            </div>
+            <div class="mt-2">Upload failed: ${data.error || 'Unknown error'}</div>
+          `;
+        }
+      }
+
       async function handleFiles(files) {
         previewDiv.innerHTML = '';
         resultDiv.innerHTML = '';
         
         for (const file of files) {
           createPreview(file);
+          const statusDiv = createUploadStatus(file);
           const formData = new FormData();
           formData.append('file', file);
 
           try {
-            const response = await fetch('/upload', {
-              method: 'POST',
-              body: formData
-            });
-            const data = await response.json();
+            const xhr = new XMLHttpRequest();
             
-            if (response.ok) {
-              const successDiv = document.createElement('div');
-              successDiv.className = 'success';
-              successDiv.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center">
-                  <div>
-                    <strong>${file.name}</strong> uploaded successfully!
-                  </div>
-                  <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-primary copy-url" data-url="${data.url}">
-                      <i class="fas fa-copy"></i> Copy URL
-                    </button>
-                    <a href="${data.url}" class="btn btn-sm btn-primary" target="_blank">
-                      <i class="fas fa-external-link-alt"></i> View
-                    </a>
-                  </div>
-                </div>
-              `;
-              resultDiv.appendChild(successDiv);
+            // Track upload progress
+            xhr.upload.addEventListener('progress', (e) => {
+              if (e.lengthComputable) {
+                const percentComplete = (e.loaded / e.total) * 100;
+                updateProgress(statusDiv, percentComplete);
+              }
+            });
 
-              // Add copy functionality
-              const copyBtn = successDiv.querySelector('.copy-url');
-              copyBtn.addEventListener('click', async () => {
+            // Handle response
+            xhr.addEventListener('load', () => {
+              if (xhr.status === 200) {
                 try {
-                  await navigator.clipboard.writeText(data.url);
-                  const originalText = copyBtn.innerHTML;
-                  copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-                  copyBtn.classList.remove('btn-outline-primary');
-                  copyBtn.classList.add('btn-success');
-                  setTimeout(() => {
-                    copyBtn.innerHTML = originalText;
-                    copyBtn.classList.remove('btn-success');
-                    copyBtn.classList.add('btn-outline-primary');
-                  }, 2000);
-                } catch (err) {
-                  console.error('Failed to copy:', err);
+                  const data = JSON.parse(xhr.responseText);
+                  completeUpload(statusDiv, file, data, true);
+                } catch (error) {
+                  completeUpload(statusDiv, file, { error: 'Invalid response format' }, false);
                 }
-              });
-            } else {
-              throw new Error(data.error || 'Upload failed');
-            }
+              } else {
+                completeUpload(statusDiv, file, { error: `HTTP ${xhr.status}: ${xhr.statusText}` }, false);
+              }
+            });
+
+            xhr.addEventListener('error', () => {
+              completeUpload(statusDiv, file, { error: 'Network error occurred' }, false);
+            });
+
+            xhr.addEventListener('abort', () => {
+              completeUpload(statusDiv, file, { error: 'Upload was cancelled' }, false);
+            });
+
+            xhr.open('POST', '/upload');
+            xhr.send(formData);
+
           } catch (error) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error';
-            errorDiv.textContent = `Error uploading "${file.name}": ${error.message}`;
-            resultDiv.appendChild(errorDiv);
+            completeUpload(statusDiv, file, { error: error.message }, false);
           }
         }
       }
