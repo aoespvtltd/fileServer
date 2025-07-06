@@ -221,6 +221,9 @@
               <span class="file-size">(${formatFileSize(file.size)})</span>
             </div>
             <span class="progress-text">0%</span>
+            <button class="btn btn-sm btn-outline-danger cancel-upload">
+              <i class="fas fa-times"></i> Cancel
+            </button>
           </div>
           <div class="progress-container">
             <div class="progress">
@@ -294,8 +297,9 @@
       }
 
       async function handleFiles(files) {
-        previewDiv.innerHTML = '';
-        resultDiv.innerHTML = '';
+        // Don't clear existing uploads, just add new ones
+        // previewDiv.innerHTML = '';
+        // resultDiv.innerHTML = '';
         
         for (const file of files) {
           createPreview(file);
@@ -305,6 +309,9 @@
 
           try {
             const xhr = new XMLHttpRequest();
+            
+            // Store XHR reference for cancellation
+            statusDiv.xhr = xhr;
             
             // Track upload progress
             xhr.upload.addEventListener('progress', (e) => {
@@ -334,6 +341,13 @@
 
             xhr.addEventListener('abort', () => {
               completeUpload(statusDiv, file, { error: 'Upload was cancelled' }, false);
+            });
+
+            // Add cancel button functionality
+            const cancelBtn = statusDiv.querySelector('.cancel-upload');
+            cancelBtn.addEventListener('click', () => {
+              xhr.abort();
+              statusDiv.remove();
             });
 
             xhr.open('POST', '/upload');
