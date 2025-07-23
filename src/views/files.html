@@ -161,6 +161,9 @@
             </div>
           </div>
         </div>
+        <div class="mb-3">
+          <input type="text" class="form-control" id="searchInput" placeholder="Search by original file name...">
+        </div>
         <div id="fileList" class="file-grid"></div>
       </div>
     </div>
@@ -172,6 +175,7 @@
       const sortSelect = document.getElementById('sortSelect');
       const gridView = document.getElementById('gridView');
       const listView = document.getElementById('listView');
+      const searchInput = document.getElementById('searchInput');
 
       function getFileIcon(filename) {
         const ext = filename.split('.').pop().toLowerCase();
@@ -261,7 +265,18 @@
           return;
         }
 
-        sortedFiles.forEach(file => {
+        // Filter by search input
+        const search = searchInput.value.trim().toLowerCase();
+        const filteredFiles = search
+          ? sortedFiles.filter(f => f.originalName.toLowerCase().includes(search))
+          : sortedFiles;
+
+        if (filteredFiles.length === 0) {
+          fileList.innerHTML = '<div class="no-files">No files match your search.</div>';
+          return;
+        }
+
+        filteredFiles.forEach(file => {
           const card = document.createElement('div');
           card.className = 'file-card';
           
@@ -367,7 +382,9 @@
 
       async function loadFiles() {
         try {
-          const response = await fetch('/api/files');
+          const search = searchInput.value.trim();
+          const url = search ? `/api/files?search=${encodeURIComponent(search)}` : '/api/files';
+          const response = await fetch(url);
           files = await response.json();
           renderFiles();
         } catch (error) {
@@ -389,6 +406,11 @@
         fileList.classList.add('list-view');
         listView.classList.add('active');
         gridView.classList.remove('active');
+      });
+
+      // Search input event
+      searchInput.addEventListener('input', () => {
+        loadFiles();
       });
 
       // Load files when the page loads
