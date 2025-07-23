@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import { join } from 'path';
-import { mkdir, readdir, stat } from 'fs/promises';
+import { mkdir, readdir, stat, unlink, writeFile, readFile } from 'fs/promises';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -46,7 +46,7 @@ app.get('/files', (req, res) => {
 });
 
 // Helper function to get the correct protocol and host
-function getBaseUrl(req: express.Request): string {
+function getBaseUrl(req){
   // Check for X-Forwarded-Proto header (set by reverse proxies)
   let protocol = req.get('X-Forwarded-Proto') || req.protocol;
   const host = req.get('X-Forwarded-Host') || req.get('host');
@@ -59,16 +59,17 @@ function getBaseUrl(req: express.Request): string {
   return `${protocol}://${host}`;
 }
 
-
 // Helper to get metadata path for a file
-function getMetaPath(filename: string) {
+function getMetaPath(filename) {
   return join(uploadsDir, filename + '.json');
 }
 
 // API endpoint to get all files (with optional search)
 app.get('/api/files', async (req, res) => {
   try {
-    const files = await readdir(uploadsDir);
+    const search = (req.query.search)?.toLowerCase() || '';
+    const files = (await readdir(uploadsDir)).filter(f => !f.endsWith('.json'));
+    const baseUrl = getBaseUrl(req);
     const fileDetails = await Promise.all(
       files.map(async (filename) => {
         const filePath = join(uploadsDir, filename);
@@ -86,8 +87,8 @@ app.get('/api/files', async (req, res) => {
           filename,
           originalName,
           size: stats.size,
-          url: `${req.protocol}://${req.get('host')}/files/${filename}`,
-          uploadedAt: new Date(timestamp)
+          url: `${baseUrl}/files/${filename}`,
+          uploadedAt
         };
       })
     );
@@ -110,8 +111,38 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
-  const fileUrl = `${req.protocol}://${req.get('host')}/files/${req.file.filename}`;
+  const baseUrl = getBaseUrl(req);
+  const fileUrl = `${baseUrl}/files/${req.file.filename}`;
+  // Save metadata
+  const meta = {
+    originalName: req.file.originalname,
+    uploadedAt: Date.now()
+  };
+  await writeFile(getMetaPath(req.file.filename), JSON.stringify(meta));
   res.json({ url: fileUrl });
+});
+
+
+// Handle file deletion
+app.delete('/api/files/:filename', async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = join(uploadsDir, filename);
+    const metaPath = getMetaPath(filename);
+    // Check if file exists
+    try {
+      await stat(filePath);
+    } catch (error) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    // Delete the file and its metadata
+    await unlink(filePath);
+    try { await unlink(metaPath); } catch {}
+    res.json({ message: 'File deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: 'Failed to delete file' });
+  }
 });
 
 // Start the server
